@@ -3,7 +3,7 @@
 local ADDON = "NetFPSTracker"
 
 -- Default settings
-local defaults = {
+defaults = {
   showHome = true,
   showWorld = true,
   showFPS = true,
@@ -18,12 +18,21 @@ local defaults = {
   borderless = false,
   locked = false,
   fontFace = "Fonts\\FRIZQT__.TTF",
+  backgroundColor = { r = 0, g = 0, b = 0 },
 }
 
 local function CloneDefaults()
   local copy = {}
   for k, v in pairs(defaults) do
-    copy[k] = v
+    if type(v) == "table" then
+      local nested = {}
+      for nk, nv in pairs(v) do
+        nested[nk] = nv
+      end
+      copy[k] = nested
+    else
+      copy[k] = v
+    end
   end
   return copy
 end
@@ -170,7 +179,8 @@ local function ApplySettings()
   local font = s.fontFace or defaults.fontFace
   frame.text:SetFont(font, s.fontSize, "OUTLINE")
   local alpha = s.frameAlpha or defaults.frameAlpha
-  frame:SetBackdropColor(0, 0, 0, alpha)
+  local bgColor = s.backgroundColor or defaults.backgroundColor
+  frame:SetBackdropColor(bgColor.r or 0, bgColor.g or 0, bgColor.b or 0, alpha)
   local borderAlpha = s.borderless and 0 or 0.8
   frame:SetBackdropBorderColor(0, 0, 0, borderAlpha)
   local locked = s.locked or defaults.locked
@@ -298,6 +308,8 @@ local function AdjustOptionsPanelSize()
     panel.lockFrame,
     panel.fontSlider,
     panel.alphaSlider,
+    panel.bgColorLabel,
+    panel.bgColorSwatch,
     panel.intervalSlider,
     panel.fontDropdown,
     panel.close,
@@ -411,6 +423,10 @@ local function UpdateOptionsControls()
   if panel.alphaSlider then panel.alphaSlider:SetValue(s.frameAlpha or defaults.frameAlpha) end
   if panel.intervalSlider then panel.intervalSlider:SetValue(s.updateInterval) end
   if panel.fontDropdown then panel.fontDropdown.SetValue(s.fontFace or defaults.fontFace) end
+  if panel.bgColorSwatch then
+    local color = s.backgroundColor or defaults.backgroundColor
+    panel.bgColorSwatch:SetBackdropColor(color.r or 0, color.g or 0, color.b or 0, 1)
+  end
 end
 
 -- Create settings controls
@@ -445,10 +461,27 @@ panel.lockFrame = CreateCheck("NetFPSTracker_LockFrame", 160, -60, "Lock Frame",
   ApplySettings()
 end)
 
-local fontLabel = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-fontLabel:SetPoint("BOTTOMLEFT", panel.fontDropdown, "TOPLEFT", 10, 6)
-fontLabel:SetText("Font Face")
+panel.fontDropdown = CreateFontDropdown("NetFPSTracker_FontDropdown", 0, -130, fontChoices, defaults.fontFace, function(v)
+  local settings = EnsureAccountSettings()
+  settings.fontFace = v
+  ApplySettings()
+end)
+panel.intervalSlider = CreateSlider("NetFPSTracker_IntervalSlider", 260, -130, "Update Interval (s)", 0.1, 5.0, 0.1, defaults.updateInterval, function(v)
+  local settings = EnsureAccountSettings()
+  settings.updateInterval = v
+end)
+
+local fontLabel = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
+fontLabel:SetPoint("BOTTOMLEFT", panel.fontDropdown, "TOPLEFT", 10, 24)
+fontLabel:SetText("Font Type")
+fontLabel:SetTextColor(1, 0.82, 0)
 panel.fontLabel = fontLabel
+local fontDescription = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+fontDescription:SetPoint("TOPLEFT", fontLabel, "BOTTOMLEFT", 0, -2)
+fontDescription:SetPoint("RIGHT", panel, -16, 0)
+fontDescription:SetJustifyH("LEFT")
+fontDescription:SetText("Choose the font used by the tracker text.")
+panel.fontDescription = fontDescription
 panel.fontSlider = CreateSlider("NetFPSTracker_FontSlider", 0, -70, "Font Size", 8, 20, 1, defaults.fontSize, function(v)
   local settings = EnsureAccountSettings()
   settings.fontSize = v
@@ -459,15 +492,88 @@ panel.alphaSlider = CreateSlider("NetFPSTracker_AlphaSlider", 260, -70, "Frame O
   settings.frameAlpha = v
   ApplySettings()
 end)
-panel.fontDropdown = CreateFontDropdown("NetFPSTracker_FontDropdown", 0, -130, fontChoices, defaults.fontFace, function(v)
+
+local function ApplyBackgroundColorToSwatch(r, g, b)
+  if panel.bgColorSwatch then
+    panel.bgColorSwatch:SetBackdropColor(r or 0, g or 0, b or 0, 1)
+  end
+end
+
+local function EnsureColorPicker()
+  if not ColorPickerFrame then
+    LoadAddOn("Blizzard_ColorPicker")
+  end
+  if ColorPickerFrame and not ColorPickerFrame.swatchFunc then
+    ColorPickerFrame.swatchFunc = function() end
+  end
+  return ColorPickerFrame
+end
+
+local function SaveBackgroundColor(r, g, b)
   local settings = EnsureAccountSettings()
-  settings.fontFace = v
+  settings.backgroundColor = { r = r or 0, g = g or 0, b = b or 0 }
   ApplySettings()
+  ApplyBackgroundColorToSwatch(r, g, b)
+end
+
+local function SetPickerColor(r, g, b)
+  if ColorPickerFrame_SetColorRGB then
+    ColorPickerFrame_SetColorRGB(ColorPickerFrame, r, g, b)
+    return
+  end
+  if ColorPickerFrame.SetColorRGB then
+    ColorPickerFrame:SetColorRGB(r, g, b)
+  end
+end
+
+local bgColorLabel = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+bgColorLabel:SetPoint("TOPLEFT", panel.fontDropdown, "TOPRIGHT", 32, 0)
+bgColorLabel:SetText("Background Color")
+panel.bgColorLabel = bgColorLabel
+
+local bgColorSwatch = CreateFrame("Button", "NetFPSTracker_BackgroundColorSwatch", panel, "BackdropTemplate")
+bgColorSwatch:SetSize(24, 24)
+bgColorSwatch:SetPoint("LEFT", bgColorLabel, "RIGHT", 8, 2)
+bgColorSwatch:SetBackdrop({
+  bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+  edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+  tile = true, tileSize = 8, edgeSize = 4,
+})
+bgColorSwatch:SetBackdropBorderColor(0.7, 0.7, 0.7, 1)
+bgColorSwatch:SetScript("OnEnter", function(self)
+  GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+  GameTooltip:SetText("Pick background color")
+  GameTooltip:Show()
 end)
-panel.intervalSlider = CreateSlider("NetFPSTracker_IntervalSlider", 260, -130, "Update Interval (s)", 0.1, 5.0, 0.1, defaults.updateInterval, function(v)
-  local settings = EnsureAccountSettings()
-  settings.updateInterval = v
+bgColorSwatch:SetScript("OnLeave", function()
+  GameTooltip:Hide()
 end)
+bgColorSwatch:SetScript("OnClick", function()
+  local current = GetAccountSettings().backgroundColor or defaults.backgroundColor
+  local r, g, b = current.r or 0, current.g or 0, current.b or 0
+  local picker = EnsureColorPicker()
+  if not picker then return end
+  local function ApplyPickerColor()
+    local cr, cg, cb = picker:GetColorRGB()
+    SaveBackgroundColor(cr, cg, cb)
+  end
+  picker.func = ApplyPickerColor
+  picker.swatchFunc = ApplyPickerColor
+  picker.cancelFunc = function(prev)
+    if prev then
+      SaveBackgroundColor(prev[1], prev[2], prev[3])
+    end
+  end
+  SetPickerColor(r, g, b)
+  picker.previousValues = { r, g, b }
+  if ColorPickerFrame:IsShown() then
+    ColorPickerFrame:Hide()
+  end
+  ShowUIPanel(ColorPickerFrame)
+end)
+panel.bgColorSwatch = bgColorSwatch
+local initColor = GetAccountSettings().backgroundColor or defaults.backgroundColor
+ApplyBackgroundColorToSwatch(initColor.r or 0, initColor.g or 0, initColor.b or 0)
 
 -- Safely register the options panel once Blizzard's InterfaceOptions API is available
 RegisterOptionsPanel = function()
@@ -505,6 +611,8 @@ panel.okay = function()
   settings.locked = panel.lockFrame and panel.lockFrame:GetChecked() or defaults.locked
   settings.frameAlpha = panel.alphaSlider and panel.alphaSlider:GetValue() or defaults.frameAlpha
   settings.updateInterval = panel.intervalSlider and panel.intervalSlider:GetValue() or defaults.updateInterval
+  local currentColor = settings.backgroundColor or defaults.backgroundColor
+  settings.backgroundColor = { r = currentColor.r or 0, g = currentColor.g or 0, b = currentColor.b or 0 }
   ApplySettings()
 end
 panel.default = function()
