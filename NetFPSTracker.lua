@@ -18,6 +18,7 @@ defaults = {
   borderless = false,
   locked = false,
   fontFace = "Fonts\\FRIZQT__.TTF",
+  fontOutline = true,
   backgroundColor = { r = 0, g = 0, b = 0 },
 }
 
@@ -177,7 +178,9 @@ end
 local function ApplySettings()
   local s = GetAccountSettings()
   local font = s.fontFace or defaults.fontFace
-  frame.text:SetFont(font, s.fontSize, "OUTLINE")
+  local outline = s.fontOutline
+  if outline == nil then outline = defaults.fontOutline end
+  frame.text:SetFont(font, s.fontSize, outline and "OUTLINE" or nil)
   local alpha = s.frameAlpha or defaults.frameAlpha
   local bgColor = s.backgroundColor or defaults.backgroundColor
   frame:SetBackdropColor(bgColor.r or 0, bgColor.g or 0, bgColor.b or 0, alpha)
@@ -308,6 +311,7 @@ local function AdjustOptionsPanelSize()
     panel.lockFrame,
     panel.fontSlider,
     panel.alphaSlider,
+    panel.fontOutline,
     panel.bgColorLabel,
     panel.bgColorSwatch,
     panel.intervalSlider,
@@ -423,6 +427,11 @@ local function UpdateOptionsControls()
   if panel.alphaSlider then panel.alphaSlider:SetValue(s.frameAlpha or defaults.frameAlpha) end
   if panel.intervalSlider then panel.intervalSlider:SetValue(s.updateInterval) end
   if panel.fontDropdown then panel.fontDropdown.SetValue(s.fontFace or defaults.fontFace) end
+  if panel.fontOutline then
+    local outline = s.fontOutline
+    if outline == nil then outline = defaults.fontOutline end
+    panel.fontOutline:SetChecked(outline)
+  end
   if panel.bgColorSwatch then
     local color = s.backgroundColor or defaults.backgroundColor
     panel.bgColorSwatch:SetBackdropColor(color.r or 0, color.g or 0, color.b or 0, 1)
@@ -469,6 +478,11 @@ end)
 panel.intervalSlider = CreateSlider("NetFPSTracker_IntervalSlider", 260, -130, "Update Interval (s)", 0.1, 5.0, 0.1, defaults.updateInterval, function(v)
   local settings = EnsureAccountSettings()
   settings.updateInterval = v
+end)
+panel.fontOutline = CreateCheck("NetFPSTracker_FontOutline", 0, -90, "Font Outline", defaults.fontOutline, function(v)
+  local settings = EnsureAccountSettings()
+  settings.fontOutline = v
+  ApplySettings()
 end)
 
 local fontLabel = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
@@ -611,6 +625,7 @@ panel.okay = function()
   settings.locked = panel.lockFrame and panel.lockFrame:GetChecked() or defaults.locked
   settings.frameAlpha = panel.alphaSlider and panel.alphaSlider:GetValue() or defaults.frameAlpha
   settings.updateInterval = panel.intervalSlider and panel.intervalSlider:GetValue() or defaults.updateInterval
+  settings.fontOutline = panel.fontOutline and panel.fontOutline:GetChecked() or defaults.fontOutline
   local currentColor = settings.backgroundColor or defaults.backgroundColor
   settings.backgroundColor = { r = currentColor.r or 0, g = currentColor.g or 0, b = currentColor.b or 0 }
   ApplySettings()
