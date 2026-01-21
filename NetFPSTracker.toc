@@ -2,6 +2,6 @@
 ## Notes: Shows world & home latency and FPS in a movable frame.
 ## Author: GitHub Copilot
 ## Version: 1.0
-## Interface: 100105
+## Interface: 120000
 ## SavedVariables: NetFPSDB
 NetFPSTracker.lua
